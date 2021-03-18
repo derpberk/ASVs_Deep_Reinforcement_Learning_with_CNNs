@@ -1,2 +1,5 @@
-# ASVs_Deep_Reinforcement_Learning_with_CNNs
- Deep Reinforcement Learning application for path planning in ASVs
+# ASVs path planning with Deep Reinforcement Learning
+ Deep Reinforcement Learning application for path planning in ASVs for
+ the Ypacaraí Lake monitoring task.
+ 
+ 
