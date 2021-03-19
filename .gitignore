@@ -94,6 +94,10 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.idea/
+
+# Results folder
+training/RESULTS
 
 # Spyder project settings
 .spyderproject
