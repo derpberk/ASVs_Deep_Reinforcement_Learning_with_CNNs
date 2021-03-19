@@ -41,7 +41,7 @@ else:
     config.device = 'cpu'
 
 """ Configure simulation conditions """
-config.number_of_episodes = 10
+config.number_of_episodes = 5000
 
 """ Hyperparameters """
 config.hyperparameters = {
@@ -53,11 +53,13 @@ config.hyperparameters = {
     'sigma': 0,
     'theta': 0,
     'dt': 0,
-    'training_episodes_per_eval_episodes': 10,
-    'initial_random_steps_number': 50,
+    'training_episodes_per_eval_episodes': 100,
+    'initial_random_steps_number': 1000,
     'initial_epsilon': 1,
     'EPSILON': 1E-6,
     'tau': 0.005,
+    'target_update_mode': 'hard',
+    'hard_update_frequency': config.number_of_episodes/20,
     'discount_rate': 0.95,
     'gradient_clipping_norm': None,
     'Actor': {

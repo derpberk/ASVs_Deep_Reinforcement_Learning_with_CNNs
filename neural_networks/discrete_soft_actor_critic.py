@@ -17,32 +17,28 @@ class Convolutional_ActorNetwork(nn.Module, ABC):
 
         """ Convolutional DNN """
 
-        self.conv1 = nn.Conv2d(input_size[0], 16, 7)
-        self.conv2 = nn.Conv2d(16, 32, 5)
-        self.conv3 = nn.Conv2d(32, 32, 3)
+        self.conv1 = nn.Conv2d(input_size[0], 16, 5)
+        self.conv2 = nn.Conv2d(16, 16, 3)
 
         x_test = T.zeros(1, input_size[0], input_size[1], input_size[2]).float()
         fc_input_size = self.size_of_conv_out(x_test)
 
         """ Fully-connected DNN - Dense """
 
-        self.fc1 = nn.Linear(fc_input_size, 1024)
-        self.fc2 = nn.Linear(1024, 512)
-        self.fc3 = nn.Linear(512, 512)
-        self.fc4 = nn.Linear(512, 512)
-        self.f_out = nn.Linear(512, action_size) # The actor return a mu and std for every possible action #
+        self.fc1 = nn.Linear(fc_input_size, 255)
+        self.fc2 = nn.Linear(255, 255)
+        self.fc3 = nn.Linear(255, 255)
+        self.f_out = nn.Linear(255, action_size) # The actor return a mu and std for every possible action #
 
     def forward(self, x):
         """ Forward function. """
 
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
         x = T.flatten(x, start_dim=1)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
-        x = F.relu(self.fc4(x))
 
         P = F.softmax(self.f_out(x), dim = 1) # In the discrete actor-critic, the actor output is softmax
 
@@ -58,7 +54,6 @@ class Convolutional_ActorNetwork(nn.Module, ABC):
 
         x = self.conv1(x)
         x = self.conv2(x)
-        x = self.conv3(x)
         x = T.flatten(x, start_dim=1)
 
         return x.shape[1]
@@ -77,20 +72,20 @@ class Convolutional_CriticNetwork(nn.Module, ABC):
 
         """ First Convolutional part - The state is processed here"""
 
-        self.conv1 = nn.Conv2d(input_size[0], 16, 7)
-        self.conv2 = nn.Conv2d(16, 32, 5)
-        self.conv3 = nn.Conv2d(32, 32, 3)
+        """ Convolutional DNN """
+
+        self.conv1 = nn.Conv2d(input_size[0], 16, 5)
+        self.conv2 = nn.Conv2d(16, 16, 3)
 
         x_test = T.zeros(1, input_size[0], input_size[1], input_size[2]).float()
         fc_input_size = self.size_of_conv_out(x_test)
 
-        """ Fully-connected part - The action is processed here"""
+        """ Fully-connected DNN - Dense """
 
-        self.fc1 = nn.Linear(fc_input_size, 512)
-        self.fc2 = nn.Linear(512, 128)
-        self.fc3 = nn.Linear(128, 128)
-        self.fc4 = nn.Linear(128, 128)
-        self.f_out = nn.Linear(128, action_size)
+        self.fc1 = nn.Linear(fc_input_size, 255)
+        self.fc2 = nn.Linear(255, 255)
+        self.fc3 = nn.Linear(255, 255)
+        self.f_out = nn.Linear(255, action_size)  # The actor return a mu and std for every possible action #
 
     def size_of_conv_out(self, x):
 
@@ -103,7 +98,6 @@ class Convolutional_CriticNetwork(nn.Module, ABC):
 
         x = self.conv1(x)
         x = self.conv2(x)
-        x = self.conv3(x)
         x = T.flatten(x, start_dim=1)
 
         return x.shape[1]
@@ -113,12 +107,10 @@ class Convolutional_CriticNetwork(nn.Module, ABC):
 
         x = F.relu(self.conv1(state))
         x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
         x = T.flatten(x, start_dim=1)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-        x = F.relu(self.fc3(x)) # Action injection
-        x = F.relu(self.fc4(x))
+        x = F.relu(self.fc3(x))
         Q = self.f_out(x)
 
         return Q

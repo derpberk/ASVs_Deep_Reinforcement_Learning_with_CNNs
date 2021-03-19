@@ -156,7 +156,7 @@ class Soft_Actors_Critic(object):
         if self.hyperparameters['add_extra_noise']:
             action += self.explorative_noise()
 
-        return np.clip(action, 0, 1)
+        return action
 
     @staticmethod
     def create_critic_cnn(input_dim, output_dim, device):
@@ -250,7 +250,13 @@ class Soft_Actors_Critic(object):
         self.optimizer_critic_2.step()  # this applies the gradients for the critic 2
 
         # Updating of the parameters #
-        self.soft_update_target_functions()
+        if self.hyperparameters['target_update_mode'] == 'soft':
+            self.soft_update_target_functions()
+        elif self.hyperparameters['target_update_mode'] == 'hard':
+            if self.episode_number % self.hyperparameters['hard_update_frequency'] == 0:
+                self.hard_update_target_functions()
+        else:
+            exit('BAD UPDATE STRATEGY: Choose soft/hard')
 
         # -- Optimization for the actor -- #
 
@@ -273,6 +279,13 @@ class Soft_Actors_Critic(object):
                                    q2_loss.cpu().detach().numpy()))
 
         return avg_critic_loss
+
+    def hard_update_target_functions(self):
+        for target_param, local_param in zip(self.critic_target_1.parameters(), self.critic_local_1.parameters()):
+            target_param.data.copy_(local_param.data)
+
+        for target_param, local_param in zip(self.critic_target_2.parameters(), self.critic_local_2.parameters()):
+            target_param.data.copy_(local_param.data)
 
     def soft_update_target_functions(self):
 
@@ -372,14 +385,14 @@ class Soft_Actors_Critic(object):
             os.mkdir(self.dirname)
 
         data = {}
-        data['Episodic Reward'] = self.episodic_reward
+        data['Episodic Reward'] = self.episodic_reward_buffer
         data['Filtered Episodic Reward'] = self.rolling_reward
         data['Record'] = self.episodic_record
         data['Average Episodic Loss'] = self.rolling_loss
 
         db = pandas.DataFrame(data)
 
-        db.to_csv(self.dirname + '/experiment_results.csv')
+        db.to_csv(self.dirname + '/experiment_results.csv', index_label = 'Episodes')
 
         if save_models:
             torch.save(self.actor_local, self.dirname + r'\actor_network_local_EPISODE_{}'.format(self.episode_number))

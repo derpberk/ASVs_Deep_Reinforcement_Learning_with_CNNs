@@ -278,7 +278,7 @@ class DDQL(object):
 
         db = pandas.DataFrame(data)
 
-        db.to_csv(self.dirname + '\experiment_results.csv')
+        db.to_csv(self.dirname + '/experiment_results.csv', index_label = 'Episodes')
 
         if save_models:
             torch.save(self.q_network_local, self.dirname + '\q_network_local_EPISODE_{}'.format(self.episode_number))

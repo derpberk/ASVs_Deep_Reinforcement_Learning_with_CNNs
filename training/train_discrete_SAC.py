@@ -27,7 +27,7 @@ my_map = np.genfromtxt(sys.path[0] + '/example_map.csv', delimiter=',')
 config.environment = DiscreteIPP(domain_type='Discrete',
                                  scenario_map=my_map,
                                  number_of_features=100,
-                                 detection_area_ratio=4)
+                                 detection_area_ratio=2)
 
 config.state_size = config.environment.reset().shape
 config.action_size = config.environment.action_size
@@ -41,11 +41,11 @@ else:
     config.device = 'cpu'
 
 """ Configure simulation conditions """
-config.number_of_episodes = 10000
+config.number_of_episodes = 5000
 
 """ Hyperparameters """
 config.hyperparameters = {
-    'buffer_size': 10000,
+    'buffer_size': 40000,
     'batch_size': 64,
     'seed': config.seed,
     'add_extra_noise': False,
@@ -53,10 +53,12 @@ config.hyperparameters = {
     'sigma': 0,
     'theta': 0,
     'dt': 0,
-    'training_episodes_per_eval_episodes': 10,
-    'initial_random_steps_number': 0,
+    'training_episodes_per_eval_episodes': 50,
+    'initial_random_steps_number': 500,
     'initial_epsilon': 1,
     'EPSILON': 1E-6,
+    'target_update_mode': 'hard',
+    'hard_update_frequency': config.number_of_episodes / 20,
     'tau': 0.005,
     'discount_rate': 0.95,
     'gradient_clipping_norm': None,

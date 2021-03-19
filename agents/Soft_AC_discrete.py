@@ -80,6 +80,7 @@ class Discrete_Soft_Actor_Critic(Soft_Actors_Critic):
         self.reset()
 
     def produce_action_with_actor(self, state):
+
         """ Produce an action using the actor network, the log probability and the tanh of the mean action """
         actor_decision = self.actor_local(state)  # decission <= [[pa1 pa2 pa3 ...]]
 
