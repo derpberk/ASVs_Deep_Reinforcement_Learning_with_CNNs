@@ -8,7 +8,7 @@ class OrnsteinUhlenbeckActionNoise(object):
 
         np.random.seed(seed=seed)
         self.theta = theta
-        self.mu = mu
+        self.mu = np.array(mu)
         self.sigma = sigma
         self.dt = dt
         self.x0 = x0

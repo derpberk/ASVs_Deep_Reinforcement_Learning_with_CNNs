@@ -17,32 +17,34 @@ class Convolutional_ActorNetwork(nn.Module, ABC):
 
         """ Convolutional DNN """
 
-        self.conv1 = nn.Conv2d(input_size[0], 16, 7)
-        self.conv2 = nn.Conv2d(16, 32, 5)
-        self.conv3 = nn.Conv2d(32, 32, 3)
+        self.conv1 = nn.Conv2d(input_size[0], 16, 5)
+        self.conv2 = nn.Conv2d(16, 16, 3)
+
+        self.maxpool1 = nn.MaxPool2d(3)
+        self.maxpool2 = nn.MaxPool2d(1)
 
         x_test = T.zeros(1, input_size[0], input_size[1], input_size[2]).float()
         fc_input_size = self.size_of_conv_out(x_test)
 
         """ Fully-connected DNN - Dense """
 
-        self.fc1 = nn.Linear(fc_input_size, 1024)
-        self.fc2 = nn.Linear(1024, 512)
+        self.fc1 = nn.Linear(fc_input_size, 512)
+        self.fc2 = nn.Linear(512, 512)
         self.fc3 = nn.Linear(512, 512)
-        self.fc4 = nn.Linear(512, 512)
         self.f_out = nn.Linear(512, action_size*2) # The actor return a mu and std for every possible action #
+
 
     def forward(self, x):
         """ Forward function. """
 
         x = F.relu(self.conv1(x))
+        x = self.maxpool1(x)
         x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
+        x = self.maxpool2(x)
         x = T.flatten(x, start_dim=1)
         x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
+        x = F.relu(self.fc2(x)) # Action injection
         x = F.relu(self.fc3(x))
-        x = F.relu(self.fc4(x))
 
         P = self.f_out(x)
 
@@ -56,9 +58,10 @@ class Convolutional_ActorNetwork(nn.Module, ABC):
         :return: Integer with the size of the input of the next layer (FC)
         """
 
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.conv3(x)
+        x = F.relu(self.conv1(x))
+        x = self.maxpool1(x)
+        x = F.relu(self.conv2(x))
+        x = self.maxpool2(x)
         x = T.flatten(x, start_dim=1)
 
         return x.shape[1]
@@ -77,9 +80,10 @@ class Convolutional_CriticNetwork(nn.Module, ABC):
 
         """ First Convolutional part - The state is processed here"""
 
-        self.conv1 = nn.Conv2d(input_size[0], 16, 7)
-        self.conv2 = nn.Conv2d(16, 32, 5)
-        self.conv3 = nn.Conv2d(32, 32, 3)
+        self.conv1 = nn.Conv2d(input_size[0], 16, 5)
+        self.conv2 = nn.Conv2d(16, 16, 3)
+        self.maxpool1 = nn.MaxPool2d(3)
+        self.maxpool2 = nn.MaxPool2d(1)
 
         x_test = T.zeros(1, input_size[0], input_size[1], input_size[2]).float()
         fc_input_size = self.size_of_conv_out(x_test)
@@ -87,10 +91,9 @@ class Convolutional_CriticNetwork(nn.Module, ABC):
         """ Fully-connected part - The action is processed here"""
 
         self.fc1 = nn.Linear(fc_input_size, 512)
-        self.fc2 = nn.Linear(512, 128)
-        self.fc3 = nn.Linear(128 + action_size, 128 + action_size)
-        self.fc4 = nn.Linear(128 + action_size, 128 + action_size)
-        self.f_out = nn.Linear(128 + action_size, action_size)
+        self.fc2 = nn.Linear(512 + action_size, 512 + action_size)
+        self.fc3 = nn.Linear(512 + action_size, 512 + action_size)
+        self.f_out = nn.Linear(512 + action_size, action_size)
 
     def size_of_conv_out(self, x):
 
@@ -101,9 +104,10 @@ class Convolutional_CriticNetwork(nn.Module, ABC):
         :return: Integer with the size of the input of the next layer (FC)
         """
 
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.conv3(x)
+        x = F.relu(self.conv1(x))
+        x = self.maxpool1(x)
+        x = F.relu(self.conv2(x))
+        x = self.maxpool2(x)
         x = T.flatten(x, start_dim=1)
 
         return x.shape[1]
@@ -112,13 +116,13 @@ class Convolutional_CriticNetwork(nn.Module, ABC):
         """ Forward function. """
 
         x = F.relu(self.conv1(state))
+        x = self.maxpool1(x)
         x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
+        x = self.maxpool2(x)
         x = T.flatten(x, start_dim=1)
         x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = F.relu(self.fc3(T.cat((x,actions),dim=1))) # Action injection
-        x = F.relu(self.fc4(x))
+        x = F.relu(self.fc2(T.cat((x, actions), dim=1))) # Action injection
+        x = F.relu(self.fc3(x))
         Q = self.f_out(x)
 
         return Q

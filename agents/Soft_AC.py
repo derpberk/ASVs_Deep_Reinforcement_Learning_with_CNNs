@@ -97,8 +97,6 @@ class Soft_Actors_Critic(object):
         """ Run one episode of the enviornment """
         is_eval_episode = self.episode_number % self.hyperparameters['training_episodes_per_eval_episodes'] == 0
 
-        if is_eval_episode: print('Evaluation episode!')
-
         self.state = self.environment.reset()
         self.episodic_reward = 0
         self.episodic_loss = 0
@@ -376,7 +374,6 @@ class Soft_Actors_Critic(object):
         progress['record'] = self.record
 
         return progress
-
 
     def save_progress(self, save_models = False):
         """ Function to save the progress of the training """
