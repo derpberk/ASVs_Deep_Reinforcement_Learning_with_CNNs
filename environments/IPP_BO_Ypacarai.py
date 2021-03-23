@@ -1,8 +1,11 @@
+import warnings
+
 import gym
 import matplotlib.pyplot as plt
 import numpy as np
+
 from environments.groundtruthgenerator import GroundTruth
-import warnings
+
 warnings.simplefilter("ignore", UserWarning)
 from skopt.learning.gaussian_process import gpr, kernels
 
@@ -73,9 +76,15 @@ class ContinuousBO(gym.Env):
         # [54 31]
         # [54 32]]
         self.possible_locations = np.asarray(np.where(self.scenario_map == 1)).reshape(2, -1).T
+        # Generate vector of possible gt (speeds up the reward MSE process)
+        self.target_locations = None
 
-        # Vector!! de dimension 1 fila x (mxn) columnas representando el mapa de incertidumbres anterior
-        self.old_std = None
+        # Vector!! de dimension 1 fila x (mxn) columnas representando el mapa de incertidumbre anterior
+        self.current_std = None
+        # Vector!! de dimension 1 fila x (mxn) columnas representando el mapa de media anterior
+        self.current_mu = None
+        # Current MSE for reward
+        self.previous_mse = None
         self._max_step_distance = np.min(self.map_size)
 
         # Initial position #
@@ -113,11 +122,15 @@ class ContinuousBO(gym.Env):
         # Generate the first input X
         self.train_inputs = np.array([self.position]).reshape(-1, 2)
         # Evaluate the environment in this particular initial point
-        self.train_targets = np.array([self.gt.normalized_z[self.position[0], self.position[1]]])
+        self.train_targets = np.array([self.gt.read(self.position)])
         # Fit the Gaussian Process
         self.gp.fit(self.train_inputs, self.train_targets)
         # Generate the uncertainty map
-        _, self.old_std = self.gp.predict(self.possible_locations, return_std=True)
+        self.current_mu, self.current_std = self.gp.predict(self.possible_locations, return_std=True)
+        # Fill vector of possible gt (speeds up the reward MSE process)
+        self.target_locations = [self.gt.read(pos) for pos in self.possible_locations]
+        # Calculate first MSE
+        self.previous_mse = (np.square(self.current_mu - self.target_locations)).mean()
         # Process the state
         self.process_state()
 
@@ -140,7 +153,7 @@ class ContinuousBO(gym.Env):
         state[2] -> features
         """
 
-        state = np.zeros(shape=(3, self.scenario_map.shape[0], self.scenario_map.shape[1])).astype(float)
+        state = np.zeros(shape=(4, self.scenario_map.shape[0], self.scenario_map.shape[1])).astype(float)
 
         # State - position #
         state[0, self.position[0], self.position[1]] = 1
@@ -149,7 +162,10 @@ class ContinuousBO(gym.Env):
         state[1] = np.copy(self.scenario_map)
 
         # State - old standard deviation
-        state[2][self.possible_locations[:, 0], self.possible_locations[:, 1]] = self.old_std
+        state[2][self.possible_locations[:, 0], self.possible_locations[:, 1]] = self.current_std
+
+        # State - old standard deviation
+        state[3][self.possible_locations[:, 0], self.possible_locations[:, 1]] = self.current_mu
 
         self.state = state
 
@@ -157,11 +173,12 @@ class ContinuousBO(gym.Env):
         """ Render the state for visualization purposes. Outputs the stacked rgb resultant. """
 
         red = np.copy(self.state[1]) + (1 - self.scenario_map)
+        # todo: agregar state[3]
         green = np.copy(self.state[2]) + (1 - self.scenario_map)
         blue = np.copy(self.state[0]) + (1 - self.scenario_map)
 
         rgb = np.stack((red, green, blue), axis=-1)
-        fig, axs = plt.subplots(1, 3, figsize=(15, 3))
+        fig, axs = plt.subplots(1, 4, figsize=(15, 3))
 
         axs[0].imshow(self.state[0])
         axs[0].set_title('Position')
@@ -169,6 +186,8 @@ class ContinuousBO(gym.Env):
         axs[1].set_title('Navigation map')
         axs[2].imshow(self.state[2])
         axs[2].set_title('$\\sigma(x)$')
+        axs[3].imshow(self.state[3])
+        axs[3].set_title('$\\mu(x)$')
 
         plt.show()
 
@@ -191,7 +210,7 @@ class ContinuousBO(gym.Env):
         next_position = np.clip(next_position, (0, 0), self.map_lims)  # Clip the intended position to be inside the map
         next_position = np.floor(next_position).astype(int)  # Discrete
 
-        if self.scenario_map[next_position[0], next_position[1]] == 1: # If the next position is navigable ...
+        if self.scenario_map[next_position[0], next_position[1]] == 1:  # If the next position is navigable ...
             valid = True
         else:
             valid = False
@@ -201,7 +220,7 @@ class ContinuousBO(gym.Env):
             self.position = next_position  # Update the position
             self.battery -= distance * self.battery_cost  # Compute the new battery level
             self.train_inputs = np.vstack([self.train_inputs, self.position])  # Store the new sampling point
-            self.train_targets = np.append(self.train_targets, self.gt.normalized_z[self.position[0], self.position[1]])
+            self.train_targets = np.append(self.train_targets, self.gt.read(self.position))
             self.gp.fit(self.train_inputs, self.train_targets)  # Fit the stored sampled points
 
         else:
@@ -224,9 +243,10 @@ class ContinuousBO(gym.Env):
             r -= self.collision_penalization
 
         else:
-            _, std = self.gp.predict(self.possible_locations, return_std=True)
-            r = np.sum(std - self.old_std)/np.sum(self.old_std)
-            self.old_std = std
+            self.current_mu, self.current_std = self.gp.predict(self.possible_locations, return_std=True)
+            r = (self.previous_mse - (np.square(self.current_mu - self.target_locations)).mean()) / self.previous_mse
+            self.previous_mse = (np.square(self.current_mu - self.target_locations)).mean()
+
         self.reward = r
 
 
@@ -234,24 +254,22 @@ if __name__ == "__main__":
 
     """ Test to check the wall-time for an episode to run and the average number of steps per episode """
 
-    my_map = np.genfromtxt('YpacaraiMap_big.csv', delimiter=',').astype(int)/255
-    env = ContinuousBO(scenario_map=my_map, resolution = 1)
+    my_map = np.genfromtxt('YpacaraiMap_big.csv', delimiter=',').astype(int) / 255
+    env = ContinuousBO(scenario_map=my_map, resolution=1)
     env.render()
 
     import time
+
     t0 = time.time()
 
     for i in range(100):
         env.reset()
         d = False
-        print('Episode ',i)
+        print('Episode ', i)
 
         while not d:
-
             a = np.random.rand(2)
             s, r_, d, _ = env.step(a)
-
         print('Number of steps: ', env.step_count)
 
-
-    print((time.time() - t0)/100,' segundos la iteracion')
+    print((time.time() - t0) / 100, ' segundos la iteracion')
