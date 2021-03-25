@@ -3,6 +3,7 @@ import warnings
 import gym
 import matplotlib.pyplot as plt
 import numpy as np
+from skopt.acquisition import gaussian_ei
 
 from environments.groundtruthgenerator import GroundTruth
 
@@ -185,8 +186,10 @@ class ContinuousBO(gym.Env):
         axs[1].imshow(self.state[1])
         axs[1].set_title('Navigation map')
         axs[2].imshow(self.state[2])
+        axs[2].plot(self.train_inputs[:, 1], self.train_inputs[:, 0], 'xr')
         axs[2].set_title('$\\sigma(x)$')
         axs[3].imshow(self.state[3])
+        axs[3].plot(self.train_inputs[:, 1], self.train_inputs[:, 0], 'xr')
         axs[3].set_title('$\\mu(x)$')
 
         plt.show()
@@ -250,13 +253,35 @@ class ContinuousBO(gym.Env):
         self.reward = r
 
 
+def get_action_using_bo(_env):
+    all_acq = gaussian_ei(_env.possible_locations, _env.gp, np.min(_env.train_targets), xi=1.0)
+    best_loc = _env.possible_locations[np.where(all_acq == np.max(all_acq))][0]
+    vect_dist = np.subtract(best_loc, _env.position)
+    ang = (np.arctan2(vect_dist[0], -vect_dist[1]) + np.pi) / (2 * np.pi)
+    # determina la distancia y luego encuentra el ratio con respecto al max dist (normaliza)
+    dist_ = np.exp(_env.gp.kernel_.theta[0]) * 0.375 / _env.max_step_distance()
+    if dist_ > 1.0:
+        dist_ = 1.0
+    acq_state = np.zeros(_env.map_size)
+    acq_state[_env.possible_locations[:, 0], _env.possible_locations[:, 1]] = all_acq
+    # plt.figure()
+    # plt.imshow(acq_state)
+    # plt.plot(_env.train_inputs[:, 1], _env.train_inputs[:, 0], 'xr')
+    # plt.plot(best_loc[1], best_loc[0], '^y')
+    # plt.plot(_env.position[1], _env.position[0], 'xb')
+    # action = _env.action2vector([dist_, ang]) + _env.position
+    # print("best: ", best_loc, "pos : ", _env.position, "dist: ", vect_dist, "next: ", action)
+    # plt.plot(action[1], action[0], '^b')
+    return [dist_, ang]
+
+
 if __name__ == "__main__":
 
     """ Test to check the wall-time for an episode to run and the average number of steps per episode """
 
     my_map = np.genfromtxt('YpacaraiMap_big.csv', delimiter=',').astype(int) / 255
     env = ContinuousBO(scenario_map=my_map, resolution=1)
-    env.render()
+    # env.render()
 
     import time
 
@@ -266,10 +291,15 @@ if __name__ == "__main__":
         env.reset()
         d = False
         print('Episode ', i)
+        avg_r_ep = 0
 
         while not d:
-            a = np.random.rand(2)
+            a = get_action_using_bo(env)
             s, r_, d, _ = env.step(a)
+            avg_r_ep += r_
+            if r_ == -10:
+                print("collision")
+            # env.render()
         print('Number of steps: ', env.step_count)
 
     print((time.time() - t0) / 100, ' segundos la iteracion')
